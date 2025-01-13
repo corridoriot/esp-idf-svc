@@ -20,7 +20,7 @@ pub struct Psk<'a> {
     pub hint: &'a str,
 }
 
-impl Debug for Psk<'_> {
+impl<'a> Debug for Psk<'a> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
         f.debug_struct("Psk")
             .field("hint", &self.hint)
@@ -109,7 +109,7 @@ impl<'a> X509<'a> {
     }
 }
 
-impl Debug for X509<'_> {
+impl<'a> Debug for X509<'a> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
         f.debug_struct("X509").finish_non_exhaustive()
     }
@@ -120,13 +120,10 @@ impl Debug for X509<'_> {
     any(esp_idf_esp_tls_using_mbedtls, esp_idf_esp_tls_using_wolfssl)
 ))]
 mod esptls {
-    use core::ffi::c_char;
     #[cfg(esp_idf_esp_tls_server_cert_select_hook)]
     use core::ffi::c_int;
     use core::task::{Context, Poll};
     use core::time::Duration;
-    #[allow(unused_imports)]
-    use core::{pin::Pin, task::ready};
 
     use embedded_svc::io;
 
@@ -166,7 +163,7 @@ mod esptls {
         pub is_plain_tcp: bool,
     }
 
-    impl Config<'_> {
+    impl<'a> Config<'a> {
         pub const fn new() -> Self {
             Self {
                 alpn_protos: None,
@@ -240,25 +237,14 @@ mod esptls {
                 rcfg.keep_alive_cfg = &mut raw_kac as *mut _;
             }
 
-            #[cfg(any(
-                esp_idf_esp_tls_psk_verification,
-                esp_idf_version_major = "4",
-                esp_idf_version = "5.0",
-                esp_idf_version = "5.1",
-                esp_idf_version = "5.2",
-                esp_idf_version = "5.3",
-                esp_idf_version = "5.4",
-            ))]
-            {
-                let mut raw_psk: sys::psk_key_hint;
-                if let Some(psk) = &self.psk_hint_key {
-                    raw_psk = sys::psk_key_hint {
-                        key: psk.key.as_ptr(),
-                        key_size: psk.key.len(),
-                        hint: psk.hint.as_ptr(),
-                    };
-                    rcfg.psk_hint_key = &mut raw_psk as *mut _;
-                }
+            let mut raw_psk: sys::psk_key_hint;
+            if let Some(psk) = &self.psk_hint_key {
+                raw_psk = sys::psk_key_hint {
+                    key: psk.key.as_ptr(),
+                    key_size: psk.key.len(),
+                    hint: psk.hint.as_ptr(),
+                };
+                rcfg.psk_hint_key = &mut raw_psk as *mut _;
             }
 
             #[cfg(esp_idf_mbedtls_certificate_bundle)]
@@ -277,14 +263,14 @@ mod esptls {
         }
     }
 
-    impl Default for Config<'_> {
+    impl<'a> Default for Config<'a> {
         fn default() -> Self {
             Self::new()
         }
     }
 
     struct RawConfigBufs {
-        alpn_protos: [*const c_char; 10],
+        alpn_protos: [*const i8; 10],
         alpn_protos_cbuf: [u8; 99],
         common_name_buf: [u8; MAX_COMMON_NAME_LENGTH + 1],
     }
@@ -664,7 +650,7 @@ mod esptls {
             let ret = unsafe {
                 if asynch {
                     sys::esp_tls_conn_new_async(
-                        host.as_bytes().as_ptr() as *const c_char,
+                        host.as_bytes().as_ptr() as *const i8,
                         host.len() as i32,
                         port as i32,
                         cfg,
@@ -672,7 +658,7 @@ mod esptls {
                     )
                 } else {
                     sys::esp_tls_conn_new_sync(
-                        host.as_bytes().as_ptr() as *const c_char,
+                        host.as_bytes().as_ptr() as *const i8,
                         host.len() as i32,
                         port as i32,
                         cfg,
@@ -720,7 +706,7 @@ mod esptls {
             // cannot call esp_tls_conn_read bc it's inline in v4
             let esp_tls = unsafe { core::ptr::read_unaligned(self.raw) };
             let read_func = esp_tls.read.unwrap();
-            unsafe { read_func(self.raw, buf.as_mut_ptr() as *mut c_char, buf.len()) }
+            unsafe { read_func(self.raw, buf.as_mut_ptr() as *mut i8, buf.len()) }
         }
 
         #[cfg(not(esp_idf_version_major = "4"))]
@@ -768,7 +754,7 @@ mod esptls {
             // cannot call esp_tls_conn_write bc it's inline
             let esp_tls = unsafe { core::ptr::read_unaligned(self.raw) };
             let write_func = esp_tls.write.unwrap();
-            unsafe { write_func(self.raw, buf.as_ptr() as *const c_char, buf.len()) }
+            unsafe { write_func(self.raw, buf.as_ptr() as *const i8, buf.len()) }
         }
 
         #[cfg(not(esp_idf_version_major = "4"))]
@@ -918,40 +904,24 @@ mod esptls {
 
         /// Read in the supplied buffer. Returns the number of bytes read.
         pub async fn read(&self, buf: &mut [u8]) -> Result<usize, EspError> {
-            core::future::poll_fn(|ctx| self.poll_read(ctx, buf)).await
-        }
-
-        pub fn poll_read(
-            &self,
-            ctx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<Result<usize, EspError>> {
             loop {
                 let res = self.0.lock().read(buf);
 
                 match res {
-                    Err(e) => ready!(self.poll_wait(ctx, e))?,
-                    Ok(n) => break Poll::Ready(Ok(n)),
+                    Err(e) => self.wait(e).await?,
+                    other => break other,
                 }
             }
         }
 
         /// Write the supplied buffer. Returns the number of bytes written.
         pub async fn write(&self, buf: &[u8]) -> Result<usize, EspError> {
-            core::future::poll_fn(|ctx| self.poll_write(ctx, buf)).await
-        }
-
-        pub fn poll_write(
-            &self,
-            ctx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<Result<usize, EspError>> {
             loop {
                 let res = self.0.lock().write(buf);
 
                 match res {
-                    Err(e) => ready!(self.poll_wait(ctx, e))?,
-                    Ok(n) => break Poll::Ready(Ok(n)),
+                    Err(e) => self.wait(e).await?,
+                    other => break other,
                 }
             }
         }
@@ -970,7 +940,7 @@ mod esptls {
             Ok(())
         }
 
-        fn poll_wait(&self, ctx: &mut Context<'_>, error: EspError) -> Poll<Result<(), EspError>> {
+        async fn wait(&self, error: EspError) -> Result<(), EspError> {
             const EWOULDBLOCK_I32: i32 = EWOULDBLOCK as i32;
 
             match error.code() {
@@ -979,18 +949,20 @@ mod esptls {
                 // The code below is therefore a hack which just waits with a timeout for the socket to (eventually)
                 // become readable as we actually don't even know if that's what esp_tls wants
                 EWOULDBLOCK_I32 => {
-                    let res = self.0.lock().socket.poll_writable(ctx);
+                    core::future::poll_fn(|ctx| self.0.lock().socket.poll_writable(ctx)).await?;
                     crate::hal::delay::FreeRtos::delay_ms(0);
-                    res
                 }
-                ESP_TLS_ERR_SSL_WANT_READ => self.0.lock().socket.poll_readable(ctx),
-                ESP_TLS_ERR_SSL_WANT_WRITE => self.0.lock().socket.poll_writable(ctx),
-                _ => Poll::Ready(Err(error)),
-            }
-        }
+                ESP_TLS_ERR_SSL_WANT_READ => {
+                    core::future::poll_fn(|ctx| self.0.lock().socket.poll_readable(ctx)).await?
+                }
 
-        async fn wait(&self, error: EspError) -> Result<(), EspError> {
-            core::future::poll_fn(|ctx| self.poll_wait(ctx, error)).await
+                ESP_TLS_ERR_SSL_WANT_WRITE => {
+                    core::future::poll_fn(|ctx| self.0.lock().socket.poll_writable(ctx)).await?
+                }
+                _ => Err(error)?,
+            }
+
+            Ok(())
         }
 
         pub fn context_handle(&self) -> *mut sys::esp_tls {
@@ -1036,102 +1008,6 @@ mod esptls {
 
         async fn flush(&mut self) -> Result<(), Self::Error> {
             Ok(())
-        }
-    }
-
-    #[cfg(all(
-        feature = "std",
-        not(esp_idf_version_major = "4"),
-        any(not(esp_idf_version_major = "5"), not(esp_idf_version_minor = "0"))
-    ))]
-    impl<S> futures_io::AsyncRead for EspAsyncTls<S>
-    where
-        S: PollableSocket,
-    {
-        fn poll_read(
-            self: Pin<&mut Self>,
-            ctx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<std::io::Result<usize>> {
-            self.as_ref()
-                .poll_read(ctx, buf)
-                .map_err(std::io::Error::other)
-        }
-    }
-
-    #[cfg(all(
-        feature = "std",
-        not(esp_idf_version_major = "4"),
-        any(not(esp_idf_version_major = "5"), not(esp_idf_version_minor = "0"))
-    ))]
-    impl<S> futures_io::AsyncRead for &EspAsyncTls<S>
-    where
-        S: PollableSocket,
-    {
-        fn poll_read(
-            self: Pin<&mut Self>,
-            ctx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<std::io::Result<usize>> {
-            self.as_ref()
-                .poll_read(ctx, buf)
-                .map_err(std::io::Error::other)
-        }
-    }
-
-    #[cfg(all(
-        feature = "std",
-        not(esp_idf_version_major = "4"),
-        any(not(esp_idf_version_major = "5"), not(esp_idf_version_minor = "0"))
-    ))]
-    impl<S> futures_io::AsyncWrite for EspAsyncTls<S>
-    where
-        S: PollableSocket,
-    {
-        fn poll_write(
-            self: Pin<&mut Self>,
-            ctx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<std::io::Result<usize>> {
-            self.as_ref()
-                .poll_write(ctx, buf)
-                .map_err(std::io::Error::other)
-        }
-
-        fn poll_flush(self: Pin<&mut Self>, _ctx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn poll_close(self: Pin<&mut Self>, _ctx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-    }
-
-    #[cfg(all(
-        feature = "std",
-        not(esp_idf_version_major = "4"),
-        any(not(esp_idf_version_major = "5"), not(esp_idf_version_minor = "0"))
-    ))]
-    impl<S> futures_io::AsyncWrite for &EspAsyncTls<S>
-    where
-        S: PollableSocket,
-    {
-        fn poll_write(
-            self: Pin<&mut Self>,
-            ctx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<std::io::Result<usize>> {
-            self.as_ref()
-                .poll_write(ctx, buf)
-                .map_err(std::io::Error::other)
-        }
-
-        fn poll_flush(self: Pin<&mut Self>, _ctx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn poll_close(self: Pin<&mut Self>, _ctx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-            Poll::Ready(Ok(()))
         }
     }
 }

@@ -8,6 +8,8 @@ extern crate alloc;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 
+use ::log::*;
+
 use enumset::*;
 
 use embedded_svc::wifi::Wifi;
@@ -138,7 +140,6 @@ impl From<AuthMethod> for Newtype<wifi_auth_mode_t> {
 
 impl From<Newtype<wifi_auth_mode_t>> for Option<AuthMethod> {
     #[allow(non_upper_case_globals)]
-    #[allow(non_snake_case)]
     fn from(mode: Newtype<wifi_auth_mode_t>) -> Self {
         match mode.0 {
             wifi_auth_mode_t_WIFI_AUTH_OPEN => Some(AuthMethod::None),
@@ -164,7 +165,6 @@ impl TryFrom<&ClientConfiguration> for Newtype<wifi_sta_config_t> {
             None => [0; 6],
         };
 
-        #[allow(clippy::needless_update)]
         let mut result = wifi_sta_config_t {
             ssid: [0; 32],
             password: [0; 64],
@@ -189,7 +189,6 @@ impl TryFrom<&ClientConfiguration> for Newtype<wifi_sta_config_t> {
             threshold: wifi_scan_threshold_t {
                 rssi: -127,
                 authmode: Newtype::<wifi_auth_mode_t>::from(conf.auth_method).0,
-                ..Default::default()
             },
             pmf_cfg: wifi_pmf_config_t {
                 capable: false,
@@ -222,7 +221,6 @@ impl From<Newtype<wifi_sta_config_t>> for ClientConfiguration {
                 None
             },
             #[allow(non_upper_case_globals)]
-            #[allow(non_snake_case)]
             scan_method: match conf.0.scan_method {
                 wifi_scan_method_t_WIFI_FAST_SCAN => ScanMethod::FastScan,
                 wifi_scan_method_t_WIFI_ALL_CHANNEL_SCAN => match conf.0.sort_method {
@@ -300,7 +298,6 @@ impl TryFrom<Newtype<&wifi_ap_record_t>> for AccessPointInfo {
     type Error = Utf8Error;
 
     #[allow(non_upper_case_globals)]
-    #[allow(non_snake_case)]
     fn try_from(ap_info: Newtype<&wifi_ap_record_t>) -> Result<Self, Self::Error> {
         let a = ap_info.0;
 
@@ -444,10 +441,9 @@ where
     }
 }
 
-/// This struct provides a safe wrapper over the ESP IDF Wifi C driver.
-///
-/// The driver works on Layer 2 (Data Link) in the OSI model, in that it provides
-/// facilities for sending and receiving ethernet packets over the WiFi radio.
+/// This struct provides a safe wrapper over the ESP IDF Wifi C driver. The driver
+/// works on Layer 2 (Data Link) in the OSI model, in that it provides facilities
+/// for sending and receiving ethernet packets over the WiFi radio.
 ///
 /// For most use cases, utilizing `EspWifi` - which provides a networking (IP)
 /// layer as well - should be preferred. Using `WifiDriver` directly is beneficial
@@ -529,9 +525,9 @@ impl<'d> WifiDriver<'d> {
                 WifiEvent::ApStopped => guard.ap = WifiApStatus::Stopped,
                 WifiEvent::StaStarted => guard.sta = WifiStaStatus::Started,
                 WifiEvent::StaStopped => guard.sta = WifiStaStatus::Stopped,
-                WifiEvent::StaConnected(_) => guard.sta = WifiStaStatus::Connected,
-                WifiEvent::StaDisconnected(_) => guard.sta = WifiStaStatus::Started,
-                WifiEvent::ScanDone(_) => guard.scan = WifiScanStatus::Done,
+                WifiEvent::StaConnected => guard.sta = WifiStaStatus::Connected,
+                WifiEvent::StaDisconnected => guard.sta = WifiStaStatus::Started,
+                WifiEvent::ScanDone => guard.scan = WifiScanStatus::Done,
                 WifiEvent::StaWpsSuccess(_)
                 | WifiEvent::StaWpsFailed
                 | WifiEvent::StaWpsTimeout
@@ -546,7 +542,6 @@ impl<'d> WifiDriver<'d> {
 
     fn init(nvs_enabled: bool) -> Result<(), EspError> {
         #[allow(clippy::needless_update)]
-        #[allow(unused_unsafe)]
         let cfg = wifi_init_config_t {
             #[cfg(esp_idf_version_major = "4")]
             event_handler: Some(esp_event_send_internal),
@@ -557,8 +552,6 @@ impl<'d> WifiDriver<'d> {
             tx_buf_type: CONFIG_ESP32_WIFI_TX_BUFFER_TYPE as _,
             static_tx_buf_num: WIFI_STATIC_TX_BUFFER_NUM as _,
             dynamic_tx_buf_num: WIFI_DYNAMIC_TX_BUFFER_NUM as _,
-            rx_mgmt_buf_type: CONFIG_ESP_WIFI_DYNAMIC_RX_MGMT_BUF as _,
-            rx_mgmt_buf_num: WIFI_RX_MGMT_BUF_NUM_DEF as _,
             cache_tx_buf_num: WIFI_CACHE_TX_BUFFER_NUM as _,
             csi_enable: WIFI_CSI_ENABLED as _,
             ampdu_rx_enable: WIFI_AMPDU_RX_ENABLED as _,
@@ -566,6 +559,7 @@ impl<'d> WifiDriver<'d> {
             amsdu_tx_enable: WIFI_AMSDU_TX_ENABLED as _,
             nvs_enable: i32::from(nvs_enabled),
             nano_enable: WIFI_NANO_FORMAT_ENABLED as _,
+            //tx_ba_win: WIFI_DEFAULT_TX_BA_WIN as _,
             rx_ba_win: WIFI_DEFAULT_RX_BA_WIN as _,
             wifi_task_core_id: WIFI_TASK_CORE_ID as _,
             beacon_max_len: WIFI_SOFTAP_BEACON_MAX_LEN as _,
@@ -605,33 +599,11 @@ impl<'d> WifiDriver<'d> {
             ))]
             espnow_max_encrypt_num: CONFIG_ESP_WIFI_ESPNOW_MAX_ENCRYPT_NUM as i32,
             magic: WIFI_INIT_CONFIG_MAGIC as _,
-            // Available since ESP IDF V5.3.0
-            #[cfg(any(
-                all(not(esp_idf_version_major = "4"), not(esp_idf_version_major = "5")),
-                all(
-                    esp_idf_version_major = "5",
-                    not(esp_idf_version = "5.0"),
-                    not(esp_idf_version = "5.1"),
-                    not(esp_idf_version = "5.2"),
-                ),
-            ))]
-            tx_hetb_queue_num: WIFI_TX_HETB_QUEUE_NUM as _,
-            // Available since ESP IDF V5.3.0
-            #[cfg(any(
-                all(not(esp_idf_version_major = "4"), not(esp_idf_version_major = "5")),
-                all(
-                    esp_idf_version_major = "5",
-                    not(esp_idf_version = "5.0"),
-                    not(esp_idf_version = "5.1"),
-                    not(esp_idf_version = "5.2"),
-                ),
-            ))]
-            dump_hesigb_enable: WIFI_DUMP_HESIGB_ENABLED != 0,
             ..Default::default()
         };
         esp!(unsafe { esp_wifi_init(&cfg) })?;
 
-        ::log::debug!("Driver initialized");
+        debug!("Driver initialized");
 
         Ok(())
     }
@@ -641,51 +613,51 @@ impl<'d> WifiDriver<'d> {
     pub fn get_capabilities(&self) -> Result<EnumSet<Capability>, EspError> {
         let caps = Capability::Client | Capability::AccessPoint | Capability::Mixed;
 
-        ::log::debug!("Providing capabilities: {:?}", caps);
+        debug!("Providing capabilities: {:?}", caps);
 
         Ok(caps)
     }
 
     /// As per [`crate::sys::esp_wifi_start`](crate::sys::esp_wifi_start)
     pub fn start(&mut self) -> Result<(), EspError> {
-        ::log::debug!("Start requested");
+        debug!("Start requested");
 
         esp!(unsafe { esp_wifi_start() })?;
 
-        ::log::debug!("Starting");
+        debug!("Starting");
 
         Ok(())
     }
 
     /// As per [`crate::sys::esp_wifi_stop`](crate::sys::esp_wifi_stop)
     pub fn stop(&mut self) -> Result<(), EspError> {
-        ::log::debug!("Stop requested");
+        debug!("Stop requested");
 
         esp!(unsafe { esp_wifi_stop() })?;
 
-        ::log::debug!("Stopping");
+        debug!("Stopping");
 
         Ok(())
     }
 
     /// As per [`crate::sys::esp_wifi_connect`](crate::sys::esp_wifi_connect)
     pub fn connect(&mut self) -> Result<(), EspError> {
-        ::log::debug!("Connect requested");
+        debug!("Connect requested");
 
         esp!(unsafe { esp_wifi_connect() })?;
 
-        ::log::debug!("Connecting");
+        debug!("Connecting");
 
         Ok(())
     }
 
     /// As per [`crate::sys::esp_wifi_disconnect`](crate::sys::esp_wifi_disconnect)
     pub fn disconnect(&mut self) -> Result<(), EspError> {
-        ::log::debug!("Disconnect requested");
+        debug!("Disconnect requested");
 
         esp!(unsafe { esp_wifi_disconnect() })?;
 
-        ::log::debug!("Disconnecting");
+        debug!("Disconnecting");
 
         Ok(())
     }
@@ -760,10 +732,9 @@ impl<'d> WifiDriver<'d> {
     }
 
     #[allow(non_upper_case_globals)]
-    #[allow(non_snake_case)]
     /// Returns the <`Configuration`> currently in use
     pub fn get_configuration(&self) -> Result<Configuration, EspError> {
-        ::log::debug!("Getting configuration");
+        debug!("Getting configuration");
 
         let mut mode: wifi_mode_t = 0;
         esp!(unsafe { esp_wifi_get_mode(&mut mode) })?;
@@ -778,7 +749,7 @@ impl<'d> WifiDriver<'d> {
             _ => panic!(),
         };
 
-        ::log::debug!("Configuration gotten: {:?}", &conf);
+        debug!("Configuration gotten: {:?}", &conf);
 
         Ok(conf)
     }
@@ -789,20 +760,20 @@ impl<'d> WifiDriver<'d> {
     /// Calls [`crate::sys::esp_wifi_set_mode`](crate::sys::esp_wifi_set_mode)
     /// and [`crate::sys::esp_wifi_set_config`](crate::sys::esp_wifi_set_config)
     pub fn set_configuration(&mut self, conf: &Configuration) -> Result<(), EspError> {
-        ::log::debug!("Setting configuration: {:?}", conf);
+        debug!("Setting configuration: {:?}", conf);
 
         match conf {
             Configuration::None => {
                 unsafe {
                     esp!(esp_wifi_set_mode(wifi_mode_t_WIFI_MODE_NULL))?;
                 }
-                ::log::debug!("Wifi mode NULL set");
+                debug!("Wifi mode NULL set");
             }
             Configuration::AccessPoint(ap_conf) => {
                 unsafe {
                     esp!(esp_wifi_set_mode(wifi_mode_t_WIFI_MODE_AP))?;
                 }
-                ::log::debug!("Wifi mode AP set");
+                debug!("Wifi mode AP set");
 
                 self.set_ap_conf(ap_conf)?;
             }
@@ -810,7 +781,7 @@ impl<'d> WifiDriver<'d> {
                 unsafe {
                     esp!(esp_wifi_set_mode(wifi_mode_t_WIFI_MODE_STA))?;
                 }
-                ::log::debug!("Wifi mode STA set");
+                debug!("Wifi mode STA set");
 
                 self.set_sta_conf(client_conf)?;
             }
@@ -818,14 +789,14 @@ impl<'d> WifiDriver<'d> {
                 unsafe {
                     esp!(esp_wifi_set_mode(wifi_mode_t_WIFI_MODE_APSTA))?;
                 }
-                ::log::debug!("Wifi mode APSTA set");
+                debug!("Wifi mode APSTA set");
 
                 self.set_sta_conf(client_conf)?;
                 self.set_ap_conf(ap_conf)?;
             }
         }
 
-        ::log::debug!("Configuration set");
+        debug!("Configuration set");
 
         Ok(())
     }
@@ -910,7 +881,7 @@ impl<'d> WifiDriver<'d> {
         scan_config: &config::ScanConfig,
         blocking: bool,
     ) -> Result<(), EspError> {
-        ::log::debug!("About to scan for access points");
+        debug!("About to scan for access points");
 
         let scan_config: wifi_scan_config_t = scan_config.into();
         esp!(unsafe { esp_wifi_scan_start(&scan_config as *const wifi_scan_config_t, blocking) })?;
@@ -922,7 +893,7 @@ impl<'d> WifiDriver<'d> {
 
     /// Stops a previous started access point scan.
     pub fn stop_scan(&mut self) -> Result<(), EspError> {
-        ::log::debug!("About to stop scan for access points");
+        debug!("About to stop scan for access points");
 
         esp!(unsafe { esp_wifi_scan_stop() })?;
 
@@ -953,7 +924,7 @@ impl<'d> WifiDriver<'d> {
                 Newtype(ap_info_raw).try_into()
             })
             .filter_map(|r| r.ok())
-            .inspect(|ap_info| ::log::debug!("Found access point {:?}", ap_info))
+            .inspect(|ap_info| debug!("Found access point {:?}", ap_info))
             .collect();
 
         Ok((result, scanned_count))
@@ -979,13 +950,15 @@ impl<'d> WifiDriver<'d> {
 
         let fetched_count = self.fetch_scan_result(&mut ap_infos_raw)?;
 
+        self.status.lock().scan = WifiScanStatus::Idle;
+
         let result = ap_infos_raw[..fetched_count]
             .iter()
             .map::<Result<AccessPointInfo, Utf8Error>, _>(|ap_info_raw| {
                 Newtype(ap_info_raw).try_into()
             })
             .filter_map(|r| r.ok())
-            .inspect(|ap_info| ::log::debug!("Found access point {:?}", ap_info))
+            .inspect(|ap_info| debug!("Found access point {:?}", ap_info))
             .collect();
 
         Ok(result)
@@ -1110,7 +1083,7 @@ impl<'d> WifiDriver<'d> {
         esp!(unsafe { esp_wifi_sta_get_ap_info(&mut ap_info_raw) })?;
         let ap_info: AccessPointInfo = Newtype(&ap_info_raw).try_into().unwrap();
 
-        ::log::debug!("AP Info: {:?}", ap_info);
+        debug!("AP Info: {:?}", ap_info);
         Ok(ap_info)
     }
 
@@ -1190,37 +1163,6 @@ impl<'d> WifiDriver<'d> {
         Ok(())
     }
 
-    /// Enables or disables promiscuous mode for the [`WifiDriver`].
-    ///
-    /// When promiscuous mode is enabled, the driver captures all Wifi frames
-    /// on the network, regardless of their destination MAC address. This is useful for
-    /// debugging or monitoring purposes.
-    pub fn set_promiscuous(&mut self, state: bool) -> Result<(), EspError> {
-        esp!(unsafe { esp_wifi_set_promiscuous(state) })?;
-
-        if state {
-            ::log::info!("Driver set in promiscuous mode");
-        } else {
-            ::log::info!("Driver set in non-promiscuous mode");
-        }
-
-        Ok(())
-    }
-
-    /// Gets the state of the promiscuous mode for the [`WifiDriver`].
-    pub fn is_promiscuous(&self) -> Result<bool, EspError> {
-        let mut en: bool = false;
-
-        esp!(unsafe { esp_wifi_get_promiscuous(&mut en) })?;
-
-        Ok(en)
-    }
-
-    //TODO: add safe wrappers for these three functions
-    //https://docs.esp-rs.org/esp-idf-sys/esp_idf_sys/fn.esp_wifi_set_promiscuous_ctrl_filter.html
-    //https://docs.esp-rs.org/esp-idf-sys/esp_idf_sys/fn.esp_wifi_set_promiscuous_filter.html
-    //https://docs.esp-rs.org/esp-idf-sys/esp_idf_sys/fn.esp_wifi_set_promiscuous_rx_cb.html
-
     /// Gets the WPS status as a [`WPS Event`] and disables WPS.
     fn stop_wps(&mut self) -> Result<WpsStatus, EspError> {
         let mut status = self.status.lock();
@@ -1242,17 +1184,17 @@ impl<'d> WifiDriver<'d> {
 
         let result: ClientConfiguration = unsafe { Newtype(wifi_config.sta).into() };
 
-        ::log::debug!("Providing STA configuration: {:?}", &result);
+        debug!("Providing STA configuration: {:?}", &result);
 
         Ok(result)
     }
 
     fn set_sta_conf(&mut self, conf: &ClientConfiguration) -> Result<(), EspError> {
-        ::log::debug!("Checking current STA configuration");
+        debug!("Checking current STA configuration");
         let current_config = self.get_sta_conf()?;
 
         if current_config != *conf {
-            ::log::debug!("Setting STA configuration: {:?}", conf);
+            debug!("Setting STA configuration: {:?}", conf);
 
             let mut wifi_config = wifi_config_t {
                 sta: Newtype::<wifi_sta_config_t>::try_from(conf)?.0,
@@ -1260,10 +1202,10 @@ impl<'d> WifiDriver<'d> {
 
             esp!(unsafe { esp_wifi_set_config(wifi_interface_t_WIFI_IF_STA, &mut wifi_config) })?;
         } else {
-            ::log::debug!("Same STA configuration already present");
+            debug!("Same STA configuration already present");
         }
 
-        ::log::debug!("STA configuration done");
+        debug!("STA configuration done");
 
         Ok(())
     }
@@ -1274,17 +1216,17 @@ impl<'d> WifiDriver<'d> {
 
         let result: AccessPointConfiguration = unsafe { Newtype(wifi_config.ap).into() };
 
-        ::log::debug!("Providing AP configuration: {:?}", &result);
+        debug!("Providing AP configuration: {:?}", &result);
 
         Ok(result)
     }
 
     fn set_ap_conf(&mut self, conf: &AccessPointConfiguration) -> Result<(), EspError> {
-        ::log::debug!("Checking current AP configuration");
+        debug!("Checking current AP configuration");
         let current_config = self.get_ap_conf()?;
 
         if current_config != *conf {
-            ::log::debug!("Setting AP configuration: {:?}", conf);
+            debug!("Setting AP configuration: {:?}", conf);
 
             let mut wifi_config = wifi_config_t {
                 ap: Newtype::<wifi_ap_config_t>::try_from(conf)?.0,
@@ -1292,10 +1234,10 @@ impl<'d> WifiDriver<'d> {
 
             esp!(unsafe { esp_wifi_set_config(wifi_interface_t_WIFI_IF_AP, &mut wifi_config) })?;
         } else {
-            ::log::debug!("Same AP configuration already present");
+            debug!("Same AP configuration already present");
         }
 
-        ::log::debug!("AP configuration done");
+        debug!("AP configuration done");
 
         Ok(())
     }
@@ -1314,7 +1256,7 @@ impl<'d> WifiDriver<'d> {
             TX_CALLBACK = None;
         }
 
-        ::log::debug!("Driver deinitialized");
+        debug!("Driver deinitialized");
 
         Ok(())
     }
@@ -1323,7 +1265,7 @@ impl<'d> WifiDriver<'d> {
         let mut found_ap: u16 = 0;
         esp!(unsafe { esp_wifi_scan_get_ap_num(&mut found_ap as *mut _) })?;
 
-        ::log::debug!("Found {} access points", found_ap);
+        debug!("Found {} access points", found_ap);
 
         Ok(found_ap as usize)
     }
@@ -1332,13 +1274,13 @@ impl<'d> WifiDriver<'d> {
         &mut self,
         ap_infos_raw: &mut [wifi_ap_record_t],
     ) -> Result<usize, EspError> {
-        ::log::debug!("About to get info for found access points");
+        debug!("About to get info for found access points");
 
         let mut ap_count: u16 = ap_infos_raw.len() as u16;
 
         esp!(unsafe { esp_wifi_scan_get_ap_records(&mut ap_count, ap_infos_raw.as_mut_ptr(),) })?;
 
-        ::log::debug!("Got info for {} access points", ap_count);
+        debug!("Got info for {} access points", ap_count);
 
         Ok(ap_count as usize)
     }
@@ -1365,7 +1307,6 @@ impl<'d> WifiDriver<'d> {
         len: u16,
         eb: *mut ffi::c_void,
     ) -> esp_err_t {
-        #[allow(static_mut_refs)]
         let res = RX_CALLBACK.as_mut().unwrap()(device_id, WifiFrame::new(buf.cast(), len, eb));
 
         match res {
@@ -1375,26 +1316,17 @@ impl<'d> WifiDriver<'d> {
     }
 
     unsafe extern "C" fn handle_tx(ifidx: u8, data: *mut u8, len: *mut u16, tx_status: bool) {
-        #[allow(static_mut_refs)]
         TX_CALLBACK.as_mut().unwrap()(
             (ifidx as wifi_interface_t).into(),
             core::slice::from_raw_parts(data as *const _, len as usize),
             tx_status,
         );
     }
-
-    pub fn get_rssi(&self) -> Result<i32, EspError> {
-        let mut rssi: core::ffi::c_int = 0;
-        unsafe {
-            esp_wifi_sta_get_rssi(&mut rssi as *mut core::ffi::c_int);
-        };
-        Ok(rssi as i32)
-    }
 }
 
-unsafe impl Send for WifiDriver<'_> {}
+unsafe impl<'d> Send for WifiDriver<'d> {}
 
-impl NonBlocking for WifiDriver<'_> {
+impl<'d> NonBlocking for WifiDriver<'d> {
     fn is_scan_done(&self) -> Result<bool, EspError> {
         WifiDriver::is_scan_done(self)
     }
@@ -1435,15 +1367,15 @@ impl NonBlocking for WifiDriver<'_> {
     }
 }
 
-impl Drop for WifiDriver<'_> {
+impl<'d> Drop for WifiDriver<'d> {
     fn drop(&mut self) {
         self.clear_all().unwrap();
 
-        ::log::debug!("WifiDriver Dropped");
+        debug!("WifiDriver Dropped");
     }
 }
 
-impl Wifi for WifiDriver<'_> {
+impl<'d> Wifi for WifiDriver<'d> {
     type Error = EspError;
 
     fn get_capabilities(&self) -> Result<EnumSet<Capability>, Self::Error> {
@@ -1537,11 +1469,9 @@ impl Drop for WifiFrame {
 }
 
 /// `EspWifi` wraps a `WifiDriver` Data Link layer instance, and binds the OSI
-/// Layer 3 (network) facilities of ESP IDF to it.
-///
-/// In other words, it connects the ESP IDF AP and STA Netif interfaces to the
-/// Wifi driver. This allows users to utilize the Rust STD APIs for working with
-/// TCP and UDP sockets.
+/// Layer 3 (network) facilities of ESP IDF to it. In other words, it connects
+/// the ESP IDF AP and STA Netif interfaces to the Wifi driver. This allows users
+/// to utilize the Rust STD APIs for working with TCP and UDP sockets.
 ///
 /// This struct should be the default option for a Wifi driver in all use cases
 /// but the niche one where bypassing the ESP IDF Netif and lwIP stacks is
@@ -1838,26 +1768,22 @@ impl<'d> EspWifi<'d> {
 
         Ok(())
     }
-
-    pub fn get_rssi(&self) -> Result<i32, EspError> {
-        self.driver().get_rssi()
-    }
 }
 
 #[cfg(esp_idf_comp_esp_netif_enabled)]
-impl Drop for EspWifi<'_> {
+impl<'d> Drop for EspWifi<'d> {
     fn drop(&mut self) {
         self.detach_netif().unwrap();
 
-        ::log::info!("EspWifi dropped");
+        info!("EspWifi dropped");
     }
 }
 
 #[cfg(esp_idf_comp_esp_netif_enabled)]
-unsafe impl Send for EspWifi<'_> {}
+unsafe impl<'d> Send for EspWifi<'d> {}
 
 #[cfg(esp_idf_comp_esp_netif_enabled)]
-impl NonBlocking for EspWifi<'_> {
+impl<'d> NonBlocking for EspWifi<'d> {
     fn is_scan_done(&self) -> Result<bool, EspError> {
         EspWifi::is_scan_done(self)
     }
@@ -1899,7 +1825,7 @@ impl NonBlocking for EspWifi<'_> {
 }
 
 #[cfg(esp_idf_comp_esp_netif_enabled)]
-impl Wifi for EspWifi<'_> {
+impl<'d> Wifi for EspWifi<'d> {
     type Error = EspError;
 
     fn get_capabilities(&self) -> Result<EnumSet<Capability>, Self::Error> {
@@ -1950,130 +1876,9 @@ impl Wifi for EspWifi<'_> {
 }
 
 #[cfg(esp_idf_comp_esp_netif_enabled)]
-impl NetifStatus for EspWifi<'_> {
+impl<'d> NetifStatus for EspWifi<'d> {
     fn is_up(&self) -> Result<bool, EspError> {
         EspWifi::is_up(self)
-    }
-}
-
-#[derive(Copy, Clone)]
-#[repr(transparent)]
-pub struct StaScanDoneRef(wifi_event_sta_scan_done_t);
-
-impl StaScanDoneRef {
-    /// Whether this scan is a success or not
-    pub fn is_successful(&self) -> bool {
-        self.0.status == 0
-    }
-
-    /// Number of scan results
-    pub fn len(&self) -> usize {
-        self.0.number as usize
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Sequential identifier of the scan
-    pub fn id(&self) -> u8 {
-        self.0.scan_id
-    }
-}
-
-impl fmt::Debug for StaScanDoneRef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StaScanDoneRef")
-            .field("is_successful", &self.is_successful())
-            .field("len", &self.len())
-            .field("id", &self.id())
-            .finish()
-    }
-}
-
-#[derive(Copy, Clone)]
-#[repr(transparent)]
-pub struct StaConnectedRef(wifi_event_sta_connected_t);
-
-impl StaConnectedRef {
-    /// SSID of the AP we connected to
-    pub fn ssid(&self) -> &[u8] {
-        &self.0.ssid.as_slice()[..self.0.ssid_len as usize]
-    }
-
-    /// BSSID (or MAC address) of the AP we connected to
-    pub fn bssid(&self) -> [u8; 6] {
-        self.0.bssid
-    }
-
-    /// Channel used for the connection to the AP
-    pub fn channel(&self) -> u8 {
-        self.0.channel
-    }
-
-    /// Authentication method used for connecting to the AP
-    pub fn authmode(&self) -> AuthMethod {
-        Option::<AuthMethod>::from(Newtype(self.0.authmode)).unwrap()
-    }
-
-    #[cfg(not(esp_idf_version_major = "4"))]
-    /// Association ID given by the AP
-    pub fn aid(&self) -> u16 {
-        self.0.aid
-    }
-}
-
-impl fmt::Debug for StaConnectedRef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut d = f.debug_struct("StaConnectedRef");
-
-        let d = d
-            .field("ssid", &alloc::string::String::from_utf8_lossy(self.ssid()))
-            .field("bssid", &self.bssid())
-            .field("channel", &self.channel())
-            .field("authmode", &self.authmode());
-
-        #[cfg(not(esp_idf_version_major = "4"))]
-        let d = d.field("aid", &self.aid());
-
-        d.finish()
-    }
-}
-
-#[derive(Copy, Clone)]
-#[repr(transparent)]
-pub struct StaDisconnectedRef(wifi_event_sta_disconnected_t);
-
-impl StaDisconnectedRef {
-    /// SSID of the AP we disconnected from
-    pub fn ssid(&self) -> &[u8] {
-        &self.0.ssid.as_slice()[..self.0.ssid_len as usize]
-    }
-
-    /// BSSID (or MAC address) of the AP we disconnected from
-    pub fn bssid(&self) -> [u8; 6] {
-        self.0.bssid
-    }
-
-    /// The reason for disconnection
-    pub fn reason(&self) -> u16 {
-        self.0.reason as u16
-    }
-
-    /// RSSI at the time of disconnection
-    pub fn rssi(&self) -> i8 {
-        self.0.rssi
-    }
-}
-
-impl fmt::Debug for StaDisconnectedRef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StaDisconnectedRef")
-            .field("ssid", &alloc::string::String::from_utf8_lossy(self.ssid()))
-            .field("bssid", &self.bssid())
-            .field("reason", &self.reason())
-            .field("rssi", &self.rssi())
-            .finish()
     }
 }
 
@@ -2157,9 +1962,9 @@ impl fmt::Debug for ApStaDisconnectedRef {
 #[repr(C)]
 pub struct HomeChannelChange {
     old_chan: u8,
-    old_snd: Option<WifiSecondChan>,
+    old_snd: WifiSecondChan,
     new_chan: u8,
-    new_snd: Option<WifiSecondChan>,
+    new_snd: WifiSecondChan,
 }
 
 #[cfg(not(any(
@@ -2188,7 +1993,6 @@ impl TryFrom<u32> for WifiSecondChan {
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         #![allow(non_upper_case_globals)]
-        #[allow(non_snake_case)]
         match value {
             wifi_second_chan_t_WIFI_SECOND_CHAN_NONE => Ok(Self::None),
             wifi_second_chan_t_WIFI_SECOND_CHAN_ABOVE => Ok(Self::Above),
@@ -2261,12 +2065,12 @@ impl fmt::Debug for ApStaConnectedRef {
 pub enum WifiEvent<'a> {
     Ready,
 
-    ScanDone(&'a StaScanDoneRef),
+    ScanDone,
 
     StaStarted,
     StaStopped,
-    StaConnected(&'a StaConnectedRef),
-    StaDisconnected(&'a StaDisconnectedRef),
+    StaConnected,
+    StaDisconnected,
     StaAuthmodeChanged,
     StaBssRssiLow,
     StaBeaconTimeout,
@@ -2296,13 +2100,13 @@ pub enum WifiEvent<'a> {
     HomeChannelChange(HomeChannelChange),
 }
 
-unsafe impl EspEventSource for WifiEvent<'_> {
+unsafe impl<'a> EspEventSource for WifiEvent<'a> {
     fn source() -> Option<&'static ffi::CStr> {
         Some(unsafe { ffi::CStr::from_ptr(WIFI_EVENT) })
     }
 }
 
-impl EspEventDeserializer for WifiEvent<'_> {
+impl<'a> EspEventDeserializer for WifiEvent<'a> {
     type Data<'d> = WifiEvent<'d>;
 
     #[allow(non_upper_case_globals, non_snake_case)]
@@ -2311,15 +2115,11 @@ impl EspEventDeserializer for WifiEvent<'_> {
 
         match event_id {
             wifi_event_t_WIFI_EVENT_WIFI_READY => WifiEvent::Ready,
-            wifi_event_t_WIFI_EVENT_SCAN_DONE => WifiEvent::ScanDone(unsafe { data.as_payload() }),
+            wifi_event_t_WIFI_EVENT_SCAN_DONE => WifiEvent::ScanDone,
             wifi_event_t_WIFI_EVENT_STA_START => WifiEvent::StaStarted,
             wifi_event_t_WIFI_EVENT_STA_STOP => WifiEvent::StaStopped,
-            wifi_event_t_WIFI_EVENT_STA_CONNECTED => {
-                WifiEvent::StaConnected(unsafe { data.as_payload() })
-            }
-            wifi_event_t_WIFI_EVENT_STA_DISCONNECTED => {
-                WifiEvent::StaDisconnected(unsafe { data.as_payload() })
-            }
+            wifi_event_t_WIFI_EVENT_STA_CONNECTED => WifiEvent::StaConnected,
+            wifi_event_t_WIFI_EVENT_STA_DISCONNECTED => WifiEvent::StaDisconnected,
             wifi_event_t_WIFI_EVENT_STA_AUTHMODE_CHANGE => WifiEvent::StaAuthmodeChanged,
             wifi_event_t_WIFI_EVENT_STA_WPS_ER_SUCCESS => {
                 let credentials: &[wifi_event_sta_wps_er_success_t__bindgen_ty_1] = data
@@ -2349,10 +2149,26 @@ impl EspEventDeserializer for WifiEvent<'_> {
             wifi_event_t_WIFI_EVENT_AP_START => WifiEvent::ApStarted,
             wifi_event_t_WIFI_EVENT_AP_STOP => WifiEvent::ApStopped,
             wifi_event_t_WIFI_EVENT_AP_STACONNECTED => {
-                WifiEvent::ApStaConnected(unsafe { data.as_payload() })
+                let payload = unsafe {
+                    (data.payload.unwrap() as *const _ as *const wifi_event_ap_staconnected_t)
+                        .as_ref()
+                };
+                WifiEvent::ApStaConnected(unsafe {
+                    core::mem::transmute::<&wifi_event_ap_staconnected_t, &ApStaConnectedRef>(
+                        payload.unwrap(),
+                    )
+                })
             }
             wifi_event_t_WIFI_EVENT_AP_STADISCONNECTED => {
-                WifiEvent::ApStaDisconnected(unsafe { data.as_payload() })
+                let payload = unsafe {
+                    (data.payload.unwrap() as *const _ as *const wifi_event_ap_stadisconnected_t)
+                        .as_ref()
+                };
+                WifiEvent::ApStaDisconnected(unsafe {
+                    core::mem::transmute::<&wifi_event_ap_stadisconnected_t, &ApStaDisconnectedRef>(
+                        payload.unwrap(),
+                    )
+                })
             }
             wifi_event_t_WIFI_EVENT_AP_PROBEREQRECVED => WifiEvent::ApProbeRequestReceived,
             wifi_event_t_WIFI_EVENT_FTM_REPORT => WifiEvent::FtmReport,
@@ -2376,9 +2192,9 @@ impl EspEventDeserializer for WifiEvent<'_> {
 
                 WifiEvent::HomeChannelChange(HomeChannelChange {
                     old_chan: payload.old_chan,
-                    old_snd: payload.old_snd.try_into().ok(),
+                    old_snd: payload.old_snd.try_into().unwrap(),
                     new_chan: payload.new_chan,
-                    new_snd: payload.new_snd.try_into().ok(),
+                    new_snd: payload.new_snd.try_into().unwrap(),
                 })
             }
             _ => panic!("unknown event ID: {}", event_id),
@@ -2866,7 +2682,7 @@ where
 }
 
 #[cfg(esp_idf_comp_esp_netif_enabled)]
-impl crate::netif::asynch::NetifStatus for EspWifi<'_> {
+impl<'d> crate::netif::asynch::NetifStatus for EspWifi<'d> {
     async fn is_up(&self) -> Result<bool, EspError> {
         EspWifi::is_up(self)
     }

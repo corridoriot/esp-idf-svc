@@ -49,7 +49,7 @@ pub struct BackgroundLoopConfiguration<'a> {
     pub task_pin_to_core: Core,
 }
 
-impl Default for BackgroundLoopConfiguration<'_> {
+impl<'a> Default for BackgroundLoopConfiguration<'a> {
     fn default() -> Self {
         Self {
             queue_size: 64,
@@ -217,13 +217,13 @@ impl<'a> EspEventPostData<'a> {
     }
 }
 
-unsafe impl EspEventSource for EspEventPostData<'_> {
+unsafe impl<'a> EspEventSource for EspEventPostData<'a> {
     fn source() -> Option<&'static ffi::CStr> {
         None
     }
 }
 
-impl EspEventSerializer for EspEventPostData<'_> {
+impl<'a> EspEventSerializer for EspEventPostData<'a> {
     type Data<'d> = EspEventPostData<'d>;
 
     fn serialize<F, R>(data: &Self::Data<'_>, f: F) -> R
@@ -246,7 +246,7 @@ impl<'a> EspEvent<'a> {
     ///
     /// Care should be taken to only call this function on fetch data that one is certain to be
     /// of type `P`
-    pub unsafe fn as_payload<P: Copy + Send + 'static>(&self) -> &'a P {
+    pub unsafe fn as_payload<P: Copy + Send + 'static>(&self) -> &P {
         let payload: &P = if mem::size_of::<P>() > 0 {
             self.payload.unwrap() as *const _ as *const P
         } else {
@@ -268,13 +268,13 @@ impl<'a> EspEvent<'a> {
     }
 }
 
-unsafe impl EspEventSource for EspEvent<'_> {
+unsafe impl<'a> EspEventSource for EspEvent<'a> {
     fn source() -> Option<&'static ffi::CStr> {
         None
     }
 }
 
-impl EspEventDeserializer for EspEvent<'_> {
+impl<'a> EspEventDeserializer for EspEvent<'a> {
     type Data<'d> = EspEvent<'d>;
 
     fn deserialize<'d>(data: &EspEvent<'d>) -> Self::Data<'d> {
@@ -343,7 +343,7 @@ where
     _callback: Box<Box<dyn FnMut(EspEvent) + Send + 'a>>,
 }
 
-impl<T> EspSubscription<'_, T>
+impl<'a, T> EspSubscription<'a, T>
 where
     T: EspEventLoopType,
 {
@@ -369,9 +369,9 @@ where
     }
 }
 
-unsafe impl<T> Send for EspSubscription<'_, T> where T: EspEventLoopType {}
+unsafe impl<'a, T> Send for EspSubscription<'a, T> where T: EspEventLoopType {}
 
-impl<T> Drop for EspSubscription<'_, T>
+impl<'a, T> Drop for EspSubscription<'a, T>
 where
     T: EspEventLoopType,
 {
@@ -404,7 +404,7 @@ where
     }
 }
 
-impl<T> RawHandle for EspSubscription<'_, User<T>>
+impl<'a, T> RawHandle for EspSubscription<'a, User<T>>
 where
     T: EspEventLoopType,
 {
@@ -441,16 +441,12 @@ where
             self.given = false;
         }
 
-        while let Some(data) = self.receiver.get_shared_async().await {
-            if Some(data.source) != D::source() {
-                self.receiver.done();
-                continue;
-            }
+        if let Some(data) = self.receiver.get_shared_async().await {
             self.given = true;
-            return Ok(D::deserialize(data));
+            Ok(D::deserialize(data))
+        } else {
+            Err(EspError::from_infallible::<ESP_ERR_INVALID_STATE>())
         }
-
-        Err(EspError::from_infallible::<ESP_ERR_INVALID_STATE>())
     }
 }
 
@@ -904,7 +900,7 @@ mod async_wait {
 
     use esp_idf_hal::task::asynch::Notification;
 
-    use ::log::debug;
+    use log::debug;
 
     use super::{EspEventDeserializer, EspEventLoop, EspEventLoopType, EspSubscription};
     use crate::sys::{esp, EspError, ESP_ERR_TIMEOUT};

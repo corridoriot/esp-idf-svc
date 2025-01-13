@@ -6,7 +6,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 
-use ::log::info;
+use log::info;
 
 use num_enum::TryFromPrimitive;
 
@@ -492,45 +492,6 @@ where
             ..Default::default()
         };
 
-        #[cfg(esp32s3)]
-        let mut bt_cfg = esp_bt_controller_config_t {
-            magic: crate::sys::ESP_BT_CTRL_CONFIG_MAGIC_VAL as _,
-            version: crate::sys::ESP_BT_CTRL_CONFIG_VERSION as _,
-            controller_task_stack_size: crate::sys::ESP_TASK_BT_CONTROLLER_STACK as _,
-            controller_task_prio: crate::sys::ESP_TASK_BT_CONTROLLER_PRIO as _,
-            controller_task_run_cpu: crate::sys::CONFIG_BT_CTRL_PINNED_TO_CORE as _,
-            bluetooth_mode: crate::sys::CONFIG_BT_CTRL_MODE_EFF as _,
-            ble_max_act: crate::sys::CONFIG_BT_CTRL_BLE_MAX_ACT_EFF as _,
-            sleep_mode: crate::sys::CONFIG_BT_CTRL_SLEEP_MODE_EFF as _,
-            sleep_clock: crate::sys::CONFIG_BT_CTRL_SLEEP_CLOCK_EFF as _,
-            ble_st_acl_tx_buf_nb: crate::sys::CONFIG_BT_CTRL_BLE_STATIC_ACL_TX_BUF_NB as _,
-            ble_hw_cca_check: crate::sys::CONFIG_BT_CTRL_HW_CCA_EFF as _,
-            ble_adv_dup_filt_max: crate::sys::CONFIG_BT_CTRL_ADV_DUP_FILT_MAX as _,
-            coex_param_en: false,
-            ce_len_type: crate::sys::CONFIG_BT_CTRL_CE_LENGTH_TYPE_EFF as _,
-            coex_use_hooks: false,
-            hci_tl_type: crate::sys::CONFIG_BT_CTRL_HCI_TL_EFF as _,
-            hci_tl_funcs: core::ptr::null_mut(),
-            txant_dft: crate::sys::CONFIG_BT_CTRL_TX_ANTENNA_INDEX_EFF as _,
-            rxant_dft: crate::sys::CONFIG_BT_CTRL_RX_ANTENNA_INDEX_EFF as _,
-            txpwr_dft: crate::sys::CONFIG_BT_CTRL_DFT_TX_POWER_LEVEL_EFF as _,
-            cfg_mask: crate::sys::CFG_MASK as _,
-            scan_duplicate_mode: crate::sys::SCAN_DUPLICATE_MODE as _,
-            scan_duplicate_type: crate::sys::SCAN_DUPLICATE_TYPE_VALUE as _,
-            normal_adv_size: crate::sys::NORMAL_SCAN_DUPLICATE_CACHE_SIZE as _,
-            mesh_adv_size: crate::sys::MESH_DUPLICATE_SCAN_CACHE_SIZE as _,
-            coex_phy_coded_tx_rx_time_limit:
-                crate::sys::CONFIG_BT_CTRL_COEX_PHY_CODED_TX_RX_TLIM_EFF as _,
-            hw_target_code: crate::sys::BLE_HW_TARGET_CODE_CHIP_ECO0 as _,
-            slave_ce_len_min: crate::sys::SLAVE_CE_LEN_MIN_DEFAULT as _,
-            hw_recorrect_en: crate::sys::AGC_RECORRECT_EN as _,
-            cca_thresh: crate::sys::CONFIG_BT_CTRL_HW_CCA_VAL as _,
-            ..Default::default() // TODO
-                                 // ble_50_feat_supp: crate::sys::BT_CTRL_50_FEATURE_SUPPORT != 0,
-                                 // dup_list_refresh_period: crate::sys::DUPL_SCAN_CACHE_REFRESH_PERIOD as _,
-                                 // scan_backoff_upperlimitmax: crate::sys::BT_CTRL_SCAN_BACKOFF_UPPERLIMITMAX as _
-        };
-
         #[cfg(esp32c3)]
         let mut bt_cfg = esp_bt_controller_config_t {
             magic: crate::sys::ESP_BT_CTRL_CONFIG_MAGIC_VAL,
@@ -570,6 +531,45 @@ where
             ..Default::default()
         };
 
+        #[cfg(esp32s3)]
+        let mut bt_cfg = esp_bt_controller_config_t {
+            magic: crate::sys::ESP_BT_CTRL_CONFIG_MAGIC_VAL as _,
+            version: crate::sys::ESP_BT_CTRL_CONFIG_VERSION as _,
+            controller_task_stack_size: crate::sys::ESP_TASK_BT_CONTROLLER_STACK as _,
+            controller_task_prio: crate::sys::ESP_TASK_BT_CONTROLLER_PRIO as _,
+            controller_task_run_cpu: crate::sys::CONFIG_BT_CTRL_PINNED_TO_CORE as _,
+            bluetooth_mode: crate::sys::CONFIG_BT_CTRL_MODE_EFF as _,
+            ble_max_act: crate::sys::CONFIG_BT_CTRL_BLE_MAX_ACT_EFF as _,
+            sleep_mode: crate::sys::CONFIG_BT_CTRL_SLEEP_MODE_EFF as _,
+            sleep_clock: crate::sys::CONFIG_BT_CTRL_SLEEP_CLOCK_EFF as _,
+            ble_st_acl_tx_buf_nb: crate::sys::CONFIG_BT_CTRL_BLE_STATIC_ACL_TX_BUF_NB as _,
+            ble_hw_cca_check: crate::sys::CONFIG_BT_CTRL_HW_CCA_EFF as _,
+            ble_adv_dup_filt_max: crate::sys::CONFIG_BT_CTRL_ADV_DUP_FILT_MAX as _,
+            coex_param_en: false,
+            ce_len_type: crate::sys::CONFIG_BT_CTRL_CE_LENGTH_TYPE_EFF as _,
+            coex_use_hooks: false,
+            hci_tl_type: crate::sys::CONFIG_BT_CTRL_HCI_TL_EFF as _,
+            hci_tl_funcs: core::ptr::null_mut(),
+            txant_dft: crate::sys::CONFIG_BT_CTRL_TX_ANTENNA_INDEX_EFF as _,
+            rxant_dft: crate::sys::CONFIG_BT_CTRL_RX_ANTENNA_INDEX_EFF as _,
+            txpwr_dft: crate::sys::CONFIG_BT_CTRL_DFT_TX_POWER_LEVEL_EFF as _,
+            cfg_mask: crate::sys::CFG_MASK as _,
+            scan_duplicate_mode: crate::sys::SCAN_DUPLICATE_MODE as _,
+            scan_duplicate_type: crate::sys::SCAN_DUPLICATE_TYPE_VALUE as _,
+            normal_adv_size: crate::sys::NORMAL_SCAN_DUPLICATE_CACHE_SIZE as _,
+            mesh_adv_size: crate::sys::MESH_DUPLICATE_SCAN_CACHE_SIZE as _,
+            coex_phy_coded_tx_rx_time_limit:
+                crate::sys::CONFIG_BT_CTRL_COEX_PHY_CODED_TX_RX_TLIM_EFF as _,
+            hw_target_code: crate::sys::BLE_HW_TARGET_CODE_CHIP_ECO0 as _,
+            slave_ce_len_min: crate::sys::SLAVE_CE_LEN_MIN_DEFAULT as _,
+            hw_recorrect_en: crate::sys::AGC_RECORRECT_EN as _,
+            cca_thresh: crate::sys::CONFIG_BT_CTRL_HW_CCA_VAL as _,
+            ..Default::default() // TODO
+                                 // ble_50_feat_supp: crate::sys::BT_CTRL_50_FEATURE_SUPPORT != 0,
+                                 // dup_list_refresh_period: crate::sys::DUPL_SCAN_CACHE_REFRESH_PERIOD as _,
+                                 // scan_backoff_upperlimitmax: crate::sys::BT_CTRL_SCAN_BACKOFF_UPPERLIMITMAX as _
+        };
+
         #[cfg(not(any(esp32, esp32s3, esp32c3)))]
         let mut bt_cfg = esp_bt_controller_config_t {
             config_version: 0x20231124,
@@ -604,75 +604,12 @@ where
             controller_run_cpu: 0,
             enable_qa_test: crate::sys::RUN_QA_TEST as _,
             enable_bqb_test: crate::sys::RUN_BQB_TEST as _,
-            #[cfg(any(
-                esp_idf_version_major = "4",
-                esp_idf_version = "5.0",
-                esp_idf_version = "5.1",
-                esp_idf_version_full = "5.2.0",
-                esp_idf_version_full = "5.2.1",
-                esp_idf_version_full = "5.2.2",
-                not(any(esp32c6, esp32h2))
-            ))]
             enable_uart_hci: crate::sys::HCI_UART_EN as _,
-            #[cfg(any(
-                esp_idf_version_major = "4",
-                esp_idf_version = "5.0",
-                esp_idf_version = "5.1",
-                esp_idf_version_full = "5.2.0",
-                esp_idf_version_full = "5.2.1",
-                esp_idf_version_full = "5.2.2",
-                not(any(esp32c6, esp32h2))
-            ))]
             ble_hci_uart_port: crate::sys::DEFAULT_BT_LE_HCI_UART_PORT as _,
-            #[cfg(any(
-                esp_idf_version_major = "4",
-                esp_idf_version = "5.0",
-                esp_idf_version = "5.1",
-                esp_idf_version_full = "5.2.0",
-                esp_idf_version_full = "5.2.1",
-                esp_idf_version_full = "5.2.2",
-                not(any(esp32c6, esp32h2))
-            ))]
             ble_hci_uart_baud: crate::sys::DEFAULT_BT_LE_HCI_UART_BAUD,
-            #[cfg(any(
-                esp_idf_version_major = "4",
-                esp_idf_version = "5.0",
-                esp_idf_version = "5.1",
-                esp_idf_version_full = "5.2.0",
-                esp_idf_version_full = "5.2.1",
-                esp_idf_version_full = "5.2.2",
-                not(any(esp32c6, esp32h2))
-            ))]
             ble_hci_uart_data_bits: crate::sys::DEFAULT_BT_LE_HCI_UART_DATA_BITS as _,
-            #[cfg(any(
-                esp_idf_version_major = "4",
-                esp_idf_version = "5.0",
-                esp_idf_version = "5.1",
-                esp_idf_version_full = "5.2.0",
-                esp_idf_version_full = "5.2.1",
-                esp_idf_version_full = "5.2.2",
-                not(any(esp32c6, esp32h2))
-            ))]
             ble_hci_uart_stop_bits: crate::sys::DEFAULT_BT_LE_HCI_UART_STOP_BITS as _,
-            #[cfg(any(
-                esp_idf_version_major = "4",
-                esp_idf_version = "5.0",
-                esp_idf_version = "5.1",
-                esp_idf_version_full = "5.2.0",
-                esp_idf_version_full = "5.2.1",
-                esp_idf_version_full = "5.2.2",
-                not(any(esp32c6, esp32h2))
-            ))]
             ble_hci_uart_flow_ctrl: crate::sys::DEFAULT_BT_LE_HCI_UART_FLOW_CTRL as _,
-            #[cfg(any(
-                esp_idf_version_major = "4",
-                esp_idf_version = "5.0",
-                esp_idf_version = "5.1",
-                esp_idf_version_full = "5.2.0",
-                esp_idf_version_full = "5.2.1",
-                esp_idf_version_full = "5.2.2",
-                not(any(esp32c6, esp32h2))
-            ))]
             ble_hci_uart_uart_parity: crate::sys::DEFAULT_BT_LE_HCI_UART_PARITY as _,
             enable_tx_cca: crate::sys::DEFAULT_BT_LE_TX_CCA_ENABLED as _,
             cca_rssi_thresh: (256 - crate::sys::DEFAULT_BT_LE_CCA_RSSI_THRESH) as _,
@@ -685,8 +622,7 @@ where
             #[cfg(esp32c2)]
             version_num: unsafe { crate::sys::esp_ble_get_chip_rev_version() },
             #[cfg(esp32c6)]
-            #[allow(clippy::unnecessary_cast)]
-            version_num: unsafe { crate::sys::efuse_hal_chip_revision() as _ },
+            version_num: unsafe { crate::sys::efuse_hal_chip_revision() },
             #[cfg(not(esp32c2))]
             cpu_freq_mhz: crate::sys::CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ as _,
             ignore_wl_for_direct_adv: 0,
@@ -724,7 +660,7 @@ where
     }
 }
 
-impl<M> Drop for BtDriver<'_, M>
+impl<'d, M> Drop for BtDriver<'d, M>
 where
     M: BtMode,
 {
@@ -739,5 +675,5 @@ where
     }
 }
 
-unsafe impl<M> Send for BtDriver<'_, M> where M: BtMode {}
-unsafe impl<M> Sync for BtDriver<'_, M> where M: BtMode {}
+unsafe impl<'d, M> Send for BtDriver<'d, M> where M: BtMode {}
+unsafe impl<'d, M> Sync for BtDriver<'d, M> where M: BtMode {}

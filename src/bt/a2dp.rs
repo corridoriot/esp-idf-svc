@@ -5,8 +5,7 @@ use core::convert::TryInto;
 use core::fmt::{self, Debug};
 use core::marker::PhantomData;
 
-use ::log::{debug, info};
-
+use log::{debug, info};
 use num_enum::TryFromPrimitive;
 
 use crate::bt::{BtClassicEnabled, BtDriver};

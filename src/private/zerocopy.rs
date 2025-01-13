@@ -11,7 +11,7 @@ use alloc::sync::{Arc, Weak};
 
 use esp_idf_hal::task::asynch::Notification;
 
-use ::log::info;
+use log::info;
 
 pub struct Receiver<T>(Weak<Channel<T>>)
 where
@@ -83,15 +83,7 @@ where
     }
 }
 
-/// SAFETY: The receiver will be able to access mutable state from other threads (even from their stack),
-/// however, the channel will ensure that the state is only accessed by one receiver at a time,
-/// and that the mutable state does not disappear while the receiver is using it.
-///
-/// Even though Receiver<T> requires T: 'static, we need to implement this for all lifetimes.
-/// This is due to a rustc bug: https://github.com/rust-lang/rust/issues/110338
-#[allow(clippy::extra_unused_lifetimes)]
-#[allow(clippy::needless_lifetimes)]
-unsafe impl<'a, T> Send for Receiver<T> where T: Send + 'a {}
+unsafe impl<T> Send for Receiver<T> where T: Send + 'static {}
 
 pub struct QuitOnDrop<T>(Arc<Channel<T>>)
 where
@@ -146,14 +138,6 @@ where
         (this, receiver)
     }
 
-    /// Share a mutable reference, that the receiver can read or write to.
-    ///
-    /// This will block until the receiver has processed the data, or the channel is closed.
-    ///
-    /// Returns `true` if the data has been processed by a receiver, and `false` if the channel was closed.
-    ///
-    /// This allows different threads to communicate without passing the data via the heap.
-    /// Instead, a sender can share a mutable reference *from its own stack* with a receiver.
     pub fn share(&self, mut data: &mut T) -> bool {
         self.set(State::Data(data))
     }
@@ -198,25 +182,8 @@ where
     }
 }
 
-/// SAFETY: The channel uses a mutex to synchronize access to the shared state.
-/// The shared state also contain a raw pointer, which can point into the stack of the sender thread.
-/// Despite this, the channel is constructed to be safe to send between threads.
-///
-/// Even though Channel<T> requires T: 'static, we need to implement this for all lifetimes.
-/// This is due to a rustc bug: https://github.com/rust-lang/rust/issues/110338
-#[allow(clippy::extra_unused_lifetimes)]
-#[allow(clippy::needless_lifetimes)]
-unsafe impl<'a, T> Send for Channel<T> where T: Send + 'a {}
-
-/// SAFETY: The channel uses a mutex to synchronize access to the shared state.
-/// The shared state also contain a raw pointer, which can point into the stack of the sender thread.
-/// Despite this, the channel is constructed to be safe to shared between threads.
-///
-/// Even though Channel<T> requires T: 'static, we need to implement this for all lifetimes.
-/// This is due to a rustc bug: https://github.com/rust-lang/rust/issues/110338
-#[allow(clippy::extra_unused_lifetimes)]
-#[allow(clippy::needless_lifetimes)]
-unsafe impl<'a, T> Sync for Channel<T> where T: Send + 'a {}
+unsafe impl<T> Send for Channel<T> where T: Send + 'static {}
+unsafe impl<T> Sync for Channel<T> where T: Send + 'static {}
 
 #[derive(Copy, Clone, Debug)]
 enum State<T> {

@@ -35,10 +35,6 @@
 use core::cell::UnsafeCell;
 use core::fmt::Debug;
 use core::marker::PhantomData;
-#[cfg(esp_idf_lwip_ipv4)]
-use core::net::Ipv4Addr;
-#[cfg(esp_idf_lwip_ipv6)]
-use core::net::Ipv6Addr;
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::time::*;
 use core::{ffi, ptr};
@@ -127,19 +123,6 @@ impl From<&Configuration> for Newtype<httpd_config_t> {
     fn from(conf: &Configuration) -> Self {
         Self(httpd_config_t {
             task_priority: 5,
-            // Since 5.3.0
-            #[cfg(any(
-                all(not(esp_idf_version_major = "4"), not(esp_idf_version_major = "5")),
-                all(
-                    esp_idf_version_major = "5",
-                    not(any(
-                        esp_idf_version_minor = "0",
-                        esp_idf_version_minor = "1",
-                        esp_idf_version_minor = "2"
-                    ))
-                ),
-            ))]
-            task_caps: (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
             stack_size: conf.stack_size,
             core_id: i32::MAX,
             server_port: conf.http_port,
@@ -674,13 +657,13 @@ impl<'a> EspHttpServer<'a> {
     }
 }
 
-impl Drop for EspHttpServer<'_> {
+impl<'a> Drop for EspHttpServer<'a> {
     fn drop(&mut self) {
         self.stop().expect("Unable to stop the server cleanly");
     }
 }
 
-impl RawHandle for EspHttpServer<'_> {
+impl<'a> RawHandle for EspHttpServer<'a> {
     type Handle = httpd_handle_t;
 
     fn handle(&self) -> Self::Handle {
@@ -744,7 +727,7 @@ impl<H, N> NonstaticChain<H, N> {
     }
 }
 
-unsafe impl EspHttpTraversableChainNonstatic<'_> for ChainRoot {}
+unsafe impl<'a> EspHttpTraversableChainNonstatic<'a> for ChainRoot {}
 
 impl<'a, H, N> EspHttpTraversableChain<'a> for NonstaticChain<H, N>
 where
@@ -771,7 +754,7 @@ where
 
 pub struct EspHttpRawConnection<'a>(&'a mut httpd_req_t);
 
-impl EspHttpRawConnection<'_> {
+impl<'a> EspHttpRawConnection<'a> {
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, EspError> {
         if !buf.is_empty() {
             let fd = unsafe { httpd_req_to_sockfd(self.0) };
@@ -803,65 +786,9 @@ impl EspHttpRawConnection<'_> {
 
         Ok(())
     }
-
-    /// Retrieves the source IPv4 of the request.
-    ///
-    /// The IPv4 is retrieved using the underlying session socket.
-    #[cfg(esp_idf_lwip_ipv4)]
-    pub fn source_ipv4(&self) -> Result<Ipv4Addr, EspError> {
-        unsafe {
-            let sockfd = httpd_req_to_sockfd(self.handle());
-
-            if sockfd == -1 {
-                return Err(EspError::from_infallible::<ESP_FAIL>());
-            }
-
-            let mut addr = sockaddr_in {
-                sin_len: core::mem::size_of::<sockaddr_in>() as _,
-                sin_family: AF_INET as _,
-                ..Default::default()
-            };
-
-            esp!(lwip_getpeername(
-                sockfd,
-                &mut addr as *mut _ as *mut _,
-                &mut core::mem::size_of::<sockaddr_in>() as *mut _ as *mut _,
-            ))?;
-
-            Ok(Ipv4Addr::from(u32::from_be(addr.sin_addr.s_addr)))
-        }
-    }
-
-    /// Retrieves the source IPv6 of the request.
-    ///
-    /// The IPv6 is retrieved using the underlying session socket.
-    #[cfg(esp_idf_lwip_ipv6)]
-    pub fn source_ipv6(&self) -> Result<Ipv6Addr, EspError> {
-        unsafe {
-            let sockfd = httpd_req_to_sockfd(self.handle());
-
-            if sockfd == -1 {
-                return Err(EspError::from_infallible::<ESP_FAIL>());
-            }
-
-            let mut addr = sockaddr_in6 {
-                sin6_len: core::mem::size_of::<sockaddr_in6>() as _,
-                sin6_family: AF_INET6 as _,
-                ..Default::default()
-            };
-
-            esp!(lwip_getpeername(
-                sockfd,
-                &mut addr as *mut _ as *mut _,
-                &mut core::mem::size_of::<sockaddr_in6>() as *mut _ as *mut _,
-            ))?;
-
-            Ok(Ipv6Addr::from(addr.sin6_addr.un.u8_addr))
-        }
-    }
 }
 
-impl RawHandle for EspHttpRawConnection<'_> {
+impl<'a> RawHandle for EspHttpRawConnection<'a> {
     type Handle = *mut httpd_req_t;
 
     fn handle(&self) -> Self::Handle {
@@ -869,17 +796,17 @@ impl RawHandle for EspHttpRawConnection<'_> {
     }
 }
 
-impl ErrorType for EspHttpRawConnection<'_> {
+impl<'a> ErrorType for EspHttpRawConnection<'a> {
     type Error = EspIOError;
 }
 
-impl Read for EspHttpRawConnection<'_> {
+impl<'a> Read for EspHttpRawConnection<'a> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         EspHttpRawConnection::read(self, buf).map_err(EspIOError)
     }
 }
 
-impl Write for EspHttpRawConnection<'_> {
+impl<'a> Write for EspHttpRawConnection<'a> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         EspHttpRawConnection::write(self, buf).map_err(EspIOError)
     }
@@ -1190,7 +1117,7 @@ impl<'a> EspHttpConnection<'a> {
     }
 }
 
-impl RawHandle for EspHttpConnection<'_> {
+impl<'a> RawHandle for EspHttpConnection<'a> {
     type Handle = *mut httpd_req_t;
 
     fn handle(&self) -> Self::Handle {
@@ -1198,7 +1125,7 @@ impl RawHandle for EspHttpConnection<'_> {
     }
 }
 
-impl Query for EspHttpConnection<'_> {
+impl<'a> Query for EspHttpConnection<'a> {
     fn uri(&self) -> &str {
         EspHttpConnection::uri(self)
     }
@@ -1208,23 +1135,23 @@ impl Query for EspHttpConnection<'_> {
     }
 }
 
-impl embedded_svc::http::Headers for EspHttpConnection<'_> {
+impl<'a> embedded_svc::http::Headers for EspHttpConnection<'a> {
     fn header(&self, name: &str) -> Option<&str> {
         EspHttpConnection::header(self, name)
     }
 }
 
-impl ErrorType for EspHttpConnection<'_> {
+impl<'a> ErrorType for EspHttpConnection<'a> {
     type Error = EspIOError;
 }
 
-impl Read for EspHttpConnection<'_> {
+impl<'a> Read for EspHttpConnection<'a> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         EspHttpConnection::read(self, buf).map_err(EspIOError)
     }
 }
 
-impl Write for EspHttpConnection<'_> {
+impl<'a> Write for EspHttpConnection<'a> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         EspHttpConnection::write(self, buf).map_err(EspIOError)
     }

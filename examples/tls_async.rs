@@ -51,7 +51,7 @@ pub mod example {
     fn run_main() -> anyhow::Result<()> {
         // `async-io` uses the ESP IDF `eventfd` syscall to implement async IO.
         // If you use `tokio`, you still have to do the same as it also uses the `eventfd` syscall
-        let _mounted_eventfs = esp_idf_svc::io::vfs::MountedEventfs::mount(5)?;
+        io::vfs::initialize_eventfd(5).unwrap();
 
         // You can use `esp_idf_svc::hal::task::block_on` as well
         async_io::block_on(pin!(async move {
@@ -169,7 +169,7 @@ pub mod example {
 
         fn release(&mut self) -> Result<(), esp_idf_svc::sys::EspError> {
             let socket = self.0.take().unwrap();
-            let _ = socket.into_inner().unwrap().into_raw_fd();
+            socket.into_inner().unwrap().into_raw_fd();
 
             Ok(())
         }

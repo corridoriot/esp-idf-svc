@@ -6,7 +6,7 @@ use core::{ffi::CStr, ops::BitOr};
 use crate::bt::BtSingleton;
 use crate::sys::*;
 
-use ::log::debug;
+use log::debug;
 
 use crate::{
     bt::{BdAddr, BleEnabled, BtDriver, BtStatus, BtUuid},
@@ -182,7 +182,7 @@ pub struct AdvConfiguration<'a> {
     pub manufacturer_data: Option<&'a [u8]>,
 }
 
-impl Default for AdvConfiguration<'_> {
+impl<'a> Default for AdvConfiguration<'a> {
     fn default() -> Self {
         Self {
             set_scan_rsp: false,
@@ -231,7 +231,7 @@ impl<'a> From<&'a AdvConfiguration<'a>> for esp_ble_adv_data_t {
 
 pub struct EventRawData<'a>(pub &'a esp_ble_gap_cb_param_t);
 
-impl Debug for EventRawData<'_> {
+impl<'a> Debug for EventRawData<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("EventRawData").finish()
     }

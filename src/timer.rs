@@ -55,7 +55,7 @@ pub struct EspTimer<'a> {
     _callback: Box<dyn FnMut() + Send + 'a>,
 }
 
-impl EspTimer<'_> {
+impl<'a> EspTimer<'a> {
     pub fn is_scheduled(&self) -> Result<bool, EspError> {
         Ok(unsafe { esp_timer_is_active(self.handle) })
     }
@@ -109,9 +109,9 @@ impl EspTimer<'_> {
     }
 }
 
-unsafe impl Send for EspTimer<'_> {}
+unsafe impl<'a> Send for EspTimer<'a> {}
 
-impl Drop for EspTimer<'_> {
+impl<'a> Drop for EspTimer<'a> {
     fn drop(&mut self) {
         self.cancel().unwrap();
 
@@ -123,7 +123,7 @@ impl Drop for EspTimer<'_> {
     }
 }
 
-impl RawHandle for EspTimer<'_> {
+impl<'a> RawHandle for EspTimer<'a> {
     type Handle = esp_timer_handle_t;
 
     fn handle(&self) -> Self::Handle {
@@ -207,24 +207,26 @@ where
     where
         F: FnMut() + Send + 'static,
     {
-        self.internal_timer(callback, false)
-    }
-
-    /// Same as `timer` but does not wake the device from light sleep.
-    pub fn timer_nowake<F>(&self, callback: F) -> Result<EspTimer<'static>, EspError>
-    where
-        F: FnMut() + Send + 'static,
-    {
-        self.internal_timer(callback, true)
+        self.internal_timer(callback)
     }
 
     pub fn timer_async(&self) -> Result<EspAsyncTimer, EspError> {
-        self.internal_timer_async(false)
-    }
+        let notification = Arc::new(Notification::new());
 
-    /// Same as `timer_async` but does not wake the device from light sleep.
-    pub fn timer_async_nowake(&self) -> Result<EspAsyncTimer, EspError> {
-        self.internal_timer_async(true)
+        let timer = {
+            let notification = Arc::downgrade(&notification);
+
+            self.timer(move || {
+                if let Some(notification) = notification.upgrade() {
+                    notification.notify(NonZeroU32::new(1).unwrap());
+                }
+            })?
+        };
+
+        Ok(EspAsyncTimer {
+            timer,
+            notification,
+        })
     }
 
     /// # Safety
@@ -254,27 +256,10 @@ where
     where
         F: FnMut() + Send + 'a,
     {
-        self.internal_timer(callback, false)
+        self.internal_timer(callback)
     }
 
-    /// # Safety
-    ///
-    /// Same as `timer_nonstatic` but does not wake the device from light sleep.
-    pub unsafe fn timer_nonstatic_nowake<'a, F>(
-        &self,
-        callback: F,
-    ) -> Result<EspTimer<'a>, EspError>
-    where
-        F: FnMut() + Send + 'a,
-    {
-        self.internal_timer(callback, true)
-    }
-
-    fn internal_timer<'a, F>(
-        &self,
-        callback: F,
-        skip_unhandled_events: bool,
-    ) -> Result<EspTimer<'a>, EspError>
+    fn internal_timer<'a, F>(&self, callback: F) -> Result<EspTimer<'a>, EspError>
     where
         F: FnMut() + Send + 'a,
     {
@@ -302,7 +287,7 @@ where
                     name: b"rust\0" as *const _ as *const _, // TODO
                     arg: unsafe_callback.as_ptr(),
                     dispatch_method,
-                    skip_unhandled_events,
+                    skip_unhandled_events: false, // TODO
                 },
                 &mut handle as *mut _,
             )
@@ -311,28 +296,6 @@ where
         Ok(EspTimer {
             handle,
             _callback: callback,
-        })
-    }
-
-    fn internal_timer_async(&self, skip_unhandled_events: bool) -> Result<EspAsyncTimer, EspError> {
-        let notification = Arc::new(Notification::new());
-
-        let timer = {
-            let notification = Arc::downgrade(&notification);
-
-            self.internal_timer(
-                move || {
-                    if let Some(notification) = notification.upgrade() {
-                        notification.notify(NonZeroU32::new(1).unwrap());
-                    }
-                },
-                skip_unhandled_events,
-            )?
-        };
-
-        Ok(EspAsyncTimer {
-            timer,
-            notification,
         })
     }
 }

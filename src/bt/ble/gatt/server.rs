@@ -2,7 +2,7 @@ use core::borrow::Borrow;
 use core::fmt::{self, Debug};
 use core::marker::PhantomData;
 
-use ::log::{debug, trace};
+use log::{debug, trace};
 
 use crate::bt::{BdAddr, BleEnabled, BtDriver, BtSingleton, BtUuid};
 use crate::sys::*;
@@ -18,7 +18,7 @@ pub type TransferId = u32;
 
 pub struct EventRawData<'a>(pub &'a esp_ble_gatts_cb_param_t);
 
-impl Debug for EventRawData<'_> {
+impl<'a> Debug for EventRawData<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("EventRawData").finish()
     }
