@@ -495,7 +495,7 @@ impl EventLoopHandle<System> {
             return Err(EspError::from_infallible::<ESP_ERR_INVALID_STATE>());
         }
 
-        esp!(unsafe { esp_event_loop_create_default() })?;
+        //TODO! esp!(unsafe { esp_event_loop_create_default() })?;
 
         *taken = true;
 

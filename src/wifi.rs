@@ -1504,6 +1504,41 @@ impl<'d> EspWifi<'d> {
         Self::wrap(WifiDriver::new(modem, sysloop)?)
     }
 
+    #[cfg(all(feature = "alloc", esp_idf_comp_nvs_flash_enabled))]
+    pub fn new_with_netif<M: WifiModemPeripheral>(
+        modem: impl Peripheral<P = M> + 'd,
+        sysloop: EspSystemEventLoop,
+        nvs: Option<EspDefaultNvsPartition>,
+        sta_key: heapless::String<32>,
+        #[cfg(esp_idf_esp_wifi_softap_support)]
+        ap_key: heapless::String<32>,
+    ) -> Result<Self, EspError> {
+        info!("new_with_netif() --001");
+        Self::wrap_with_netif(
+            WifiDriver::new(modem, sysloop, nvs)?,
+            sta_key,
+            #[cfg(esp_idf_esp_wifi_softap_support)]
+            ap_key
+        )
+    }
+
+    #[cfg(not(all(feature = "alloc", esp_idf_comp_nvs_flash_enabled)))]
+    pub fn new_with_netif<M: WifiModemPeripheral>(
+        modem: impl Peripheral<P = M> + 'd,
+        sysloop: EspSystemEventLoop,
+        nvs: Option<EspDefaultNvsPartition>,
+        sta_key: heapless::String<32>,
+        #[cfg(esp_idf_esp_wifi_softap_support)]
+        ap_key: heapless::String<32>,
+    ) -> Result<Self, EspError> {
+        Self::wrap_with_netif(
+            WifiDriver::new(modem, sysloop)?,
+            sta_key,
+            #[cfg(esp_idf_esp_wifi_softap_support)]
+            ap_key
+        )        
+    }
+
     pub fn wrap(driver: WifiDriver<'d>) -> Result<Self, EspError> {
         Self::wrap_all(
             driver,
@@ -1511,6 +1546,33 @@ impl<'d> EspWifi<'d> {
             #[cfg(esp_idf_esp_wifi_softap_support)]
             EspNetif::new(NetifStack::Ap)?,
         )
+    }
+
+    pub fn wrap_with_netif(
+        driver: WifiDriver<'d>,
+        sta_key: heapless::String<32>,
+        #[cfg(esp_idf_esp_wifi_softap_support)]
+        ap_key: heapless::String<32>,
+    ) -> Result<Self, EspError> {
+        let sta_netif = EspNetif::from_key(sta_key)?;
+        let ap_netif = EspNetif::new(NetifStack::Ap)?;
+
+        info!("wrap_with_netif() --001");
+        
+        let mut this = Self {
+            driver,
+            sta_netif,
+            #[cfg(esp_idf_esp_wifi_softap_support)]
+            ap_netif,
+        };
+
+        info!("wrap_with_netif() --002");
+
+        Ok(this)
+    }
+
+    pub fn is_sta_init(sta_key: heapless::String<32>) -> bool {
+        !EspNetif::from_key(sta_key).is_err()
     }
 
     pub fn wrap_all(
