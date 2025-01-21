@@ -693,6 +693,12 @@ impl<'d> WifiDriver<'d> {
         ))
     }
 
+    pub fn set_connected(&self, connected: bool) {
+        if connected {
+            self.status.lock().sta = WifiStaStatus::Connected;
+        }
+    }
+
     pub fn is_sta_connected(&self) -> Result<bool, EspError> {
         Ok(matches!(self.status.lock().sta, WifiStaStatus::Connected))
     }
@@ -1510,15 +1516,13 @@ impl<'d> EspWifi<'d> {
         sysloop: EspSystemEventLoop,
         nvs: Option<EspDefaultNvsPartition>,
         sta_key: heapless::String<32>,
-        #[cfg(esp_idf_esp_wifi_softap_support)]
-        ap_key: heapless::String<32>,
     ) -> Result<Self, EspError> {
-        info!("new_with_netif() --001");
+        let mut driver = WifiDriver::new(modem, sysloop, nvs)?;
+        let connected = !driver.get_ap_info().is_err();
+        driver.set_connected(connected);
         Self::wrap_with_netif(
-            WifiDriver::new(modem, sysloop, nvs)?,
+            driver,
             sta_key,
-            #[cfg(esp_idf_esp_wifi_softap_support)]
-            ap_key
         )
     }
 
@@ -1534,9 +1538,7 @@ impl<'d> EspWifi<'d> {
         Self::wrap_with_netif(
             WifiDriver::new(modem, sysloop)?,
             sta_key,
-            #[cfg(esp_idf_esp_wifi_softap_support)]
-            ap_key
-        )        
+        )
     }
 
     pub fn wrap(driver: WifiDriver<'d>) -> Result<Self, EspError> {
@@ -1551,28 +1553,22 @@ impl<'d> EspWifi<'d> {
     pub fn wrap_with_netif(
         driver: WifiDriver<'d>,
         sta_key: heapless::String<32>,
-        #[cfg(esp_idf_esp_wifi_softap_support)]
-        ap_key: heapless::String<32>,
     ) -> Result<Self, EspError> {
         let sta_netif = EspNetif::from_key(sta_key)?;
         let ap_netif = EspNetif::new(NetifStack::Ap)?;
-
-        info!("wrap_with_netif() --001");
         
-        let mut this = Self {
+        let this = Self {
             driver,
             sta_netif,
             #[cfg(esp_idf_esp_wifi_softap_support)]
             ap_netif,
         };
 
-        info!("wrap_with_netif() --002");
-
         Ok(this)
     }
 
     pub fn is_sta_init(sta_key: heapless::String<32>) -> bool {
-        !EspNetif::from_key(sta_key).is_err()
+        EspNetif::is_netif_attached(sta_key)
     }
 
     pub fn wrap_all(
@@ -2762,7 +2758,7 @@ where
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-enum WifiStaStatus {
+pub enum WifiStaStatus {
     Stopped,
     Started,
     Connected,

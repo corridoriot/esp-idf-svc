@@ -360,12 +360,18 @@ impl EspNetif {
         let mut buf = [0u8; 32];
         let bytes = key.as_bytes();
         buf[..bytes.len()].copy_from_slice(bytes);
-
-        let mut handle = Self(
+        let handle = Self(
             unsafe { esp_netif_get_handle_from_ifkey(buf.as_ptr() as *const _).as_mut() }
                 .ok_or(EspError::from_infallible::<ESP_ERR_INVALID_ARG>())?,
         );
         Ok(handle)
+    }
+
+    pub fn is_netif_attached(key: heapless::String<32>) -> bool {
+        let mut buf = [0u8; 32];
+        let bytes = key.as_bytes();
+        buf[..bytes.len()].copy_from_slice(bytes);
+        unsafe { esp_netif_get_handle_from_ifkey(buf.as_ptr() as *const _).as_mut().is_some() }
     }
 
     pub fn is_up(&self) -> Result<bool, EspError> {
